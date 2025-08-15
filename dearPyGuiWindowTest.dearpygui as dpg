@@ -1,0 +1,789 @@
+import sys
+import datetime
+import dearpygui.dearpygui as dpg
+import moviepy as mpy
+from moviepy import *
+import glob
+import urllib.request
+import re   
+import os as os
+import shutil
+from pytubefix import YouTube
+from pytube.exceptions import VideoUnavailable
+from pydub import AudioSegment
+import yt_dlp
+import requests
+
+NUMBER_OF_VIDEOS = 3
+# ROOT_DIRECTORY_PATH = r"/home/nik/Downloads"
+# TITLE = "Intergalactic - The Heretic Prophet Trailer.mp4"
+# NEW_TITLE = "ITHP-00"
+# SEARCH_KEYWORDS   = "free+for+profit+synthwave+beat&sp=CAI%253D"
+# SHORTS_DIRECTORY_PATH = os.path.join(ROOT_DIRECTORY_PATH, r"ITHP-SHORTS")
+# SOURCE_VIDEO_PATH = os.path.join(ROOT_DIRECTORY_PATH, TITLE)
+# OUTPUT_VIDEO_PATH = os.path.join(SHORTS_DIRECTORY_PATH, NEW_TITLE)
+# AUDIO_BASE_PATH   = os.path.join(SHORTS_DIRECTORY_PATH, "AUDIO")
+VIDEO_END_TRIM_TIME = 355
+NUMBER_OF_CLIPS = 15
+
+#****************************************************************************************************
+# Function Name:      print_me
+# In:                 sender
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+def print_me(sender):
+    print(f"Menu Item: {sender}")
+
+
+#****************************************************************************************************
+# Function Name:      directorySetUp
+# In:                 shortsDirectory
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+def directorySetUp(shortsDirectory):
+    # shortsDirectory = os.path.join(rootDirectory, "SHORTS")
+    if(not os.path.isdir(shortsDirectory)):
+        os.mkdir(shortsDirectory)
+        os.mkdir(os.path.join(shortsDirectory, "AUDIO"))
+        
+
+#****************************************************************************************************
+# Function Name:      audioDirectorySetUp
+# In:                 audioExportPath, audioDownloadPath
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+def audioDirectorySetUp(  audioExportPath
+                        , audioDownloadPath):
+    # Create audio export folder
+    if(not os.path.isdir(audioExportPath)):
+        os.mkdir(audioExportPath)
+    if(not os.path.isdir(audioDownloadPath)):
+        os.mkdir(audioDownloadPath)
+
+
+#****************************************************************************************************
+# Function Name:      queryForYouTubeKeywords
+# In:                 searchKeyword
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+def queryForYouTubeKeywords(searchKeyword):
+    videoIDs = []
+    videoIDsWithDuplicates = []
+    # Query definition and search procedure
+    html = urllib.request.urlopen("https://www.youtube.com/results?search_query=" + searchKeyword)
+    videoIDsWithDuplicates = re.findall(r"watch\?v=(\S{11})", html.read().decode())
+    [videoIDs.append(video) for video in videoIDsWithDuplicates if (video not in videoIDs)] # and "_" not in video)]
+    print("Found " + str(len(videoIDs)) + " unique videos....")
+    return videoIDs
+
+
+#****************************************************************************************************
+# Function Name:      printAudioFileMetadataToConsole
+# In:                 stream, result, videoIDs, videoIteration
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+def printAudioFileMetadataToConsole(  stream
+                                    , result
+                                    , videoIDs
+                                    , videoIteration):
+    print("Result: " + str(result))
+    print("Address: https://www.youtube.com/watch?v=" + videoIDs[videoIteration])
+    print("Title: " + stream.title)
+    print("Description: " + str(stream.description))
+    print("Views: " + str(stream.views) + "\n")
+
+
+#****************************************************************************************************
+# Function Name:      writeAudioFileMetadataToFile
+# In:                 stream, result, videoIDs, videoIteration, audioDownloadPath
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+def writeAudioFileMetadataToFile(  stream
+                                 , result
+                                 , videoIDs
+                                 , videoIteration
+                                 , audioDownloadPath):
+    now = datetime.datetime.now()
+    newFileObject = open(os.path.join(audioDownloadPath, "audioFileMetadata-" + str(now.year) + str(now.month) + str(now.day) + str(now.hour) + str(now.minute) + ".txt"), "a")
+    newFileObject.writelines("Result: " + str(result) + "\n")
+    newFileObject.writelines("Address: https://www.youtube.com/watch?v=" + videoIDs[videoIteration] + "\n")
+    # newFileObject.writelines("Title: " + str(stream.title) + "\n")
+    # newFileObject.writelines("Description: " + str(stream.description) + "\n")
+    newFileObject.writelines("Views: " + str(stream.views) + "\n\n")
+    newFileObject.close()
+
+
+#****************************************************************************************************
+# Function Name:      downloadAudioFiles
+# In:                 videoIDs, audioDownloadPath
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+def downloadAudioFiles(  videoIDs
+                       , audioDownloadPath
+                       , numberOfVideos):
+    print("\nEntering downloadAudioFiles\n")
+    # Download audio files
+    videoIteration = 0
+    audio = []
+    while videoIteration < len(videoIDs):
+        try:
+            print("video_id: " + str(videoIteration))
+            print("count: " + str(len(audio)))
+            print("numberOfVideos: " + numberOfVideos)
+            # print("int(numberOfVideos): " + int(numberOfVideos))
+
+            stream = YouTube("https://www.youtube.com/watch?v=" + videoIDs[videoIteration], 'WEB_EMBED') #, use_po_token=True, allow_oauth_cache=False)
+            print("stream: " + "https://www.youtube.com/watch?v=" + videoIDs[videoIteration])
+            # if stream.length > 90:
+            #     print("stream.length > 90.\n")
+
+            print("\n")
+            # print(stream.vid_info['videoDetails'])
+            print("\n")
+            
+            if ("FREE FOR PROFIT" in stream.title or "Free for profit" in stream.title or "free for profit" in stream.title and "NOT free for profit" not in stream.title):
+                if (stream.length > 90):
+                    result = stream.streams.filter(file_extension='mp4', only_audio = True, abr = "128kbps")
+                    print("result: " + str(result))
+                    printAudioFileMetadataToConsole(stream, result, videoIDs, videoIteration)
+                    writeAudioFileMetadataToFile(stream, result, videoIDs, videoIteration, audioDownloadPath)
+                    audio.append(stream.streams.get_by_itag(140))
+                    # audio.append(stream)
+
+                    try:
+                        print(f'Downloading video: {"https://www.youtube.com/watch?v=" + videoIDs[videoIteration]}')
+                        stream.streams.get_audio_only().download(output_path = audioDownloadPath)
+                        # track.download(output_path = audioDownloadPath) # This method uses PyTube.  However, as of 10.3.2024, I cannot reconcile the format in which to download a YouTube video in the innertube.py file such that I do not receive a 403 forbidden error.  So I am using yt-dlp as a workaround for this iteration. NDG 2024.10.3
+   
+                        # ydl_opts = {
+                        #     'format': 'bestaudio/best',
+                        #     'outtmpl': audioDownloadPath + r"/" + videoIDs[videoIteration] + ".mp4"
+                        # }
+                        # newClip = yt_dlp.YoutubeDL(ydl_opts).download("https://www.youtube.com/watch?v=" + videoIDs[videoIteration])  # This method uses yt_dlp. I am trying pytubefix again with updates on 20250406.
+                    except VideoUnavailable:
+                        print(f'Video {"https://www.youtube.com/watch?v=" + videoIDs[videoIteration]} is unavailable. Skipping...')
+                    except requests.exceptions.HTTPError as errh:
+                        print("HTTP ERROR")
+                        print(errh.args[0])
+
+            if len(audio) > (int(numberOfVideos) - 1):
+                break
+        except VideoUnavailable:
+            print(f'Video {stream} is unavailable. Skipping...')
+
+        videoIteration += 1
+
+    # for track in audio:
+
+
+
+#****************************************************************************************************
+# Function Name:      createAudioSubclips
+# In:                 audioExportPath
+#                     , audioDownloadPath
+#                     , numberOfClips
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        Searches the audio file download directory for files of extension .m4a audio 
+#                       and creates tailored audio for the video.  Calculates the length of the audio 
+#                       file from numberOfClips and lengthPerClip.  Applies a fade in and fade out 
+#                       and a gain of -30 db. 
+#****************************************************************************************************
+def createAudioSubclips(  audioExportPath
+                        , audioDownloadPath
+                        , numberOfClips
+                        , lengthPerClip):
+
+    print("/nEntering createAudioSubclips...")
+    # Import the downloaded files and create subclips
+    print("Audio Download Path: " + audioDownloadPath)
+    print("Files: " + str(os.listdir(audioDownloadPath)))
+    numberOfAudioTracks = len([filename for filename in os.listdir(audioDownloadPath) if ".m4a" in filename])
+    print("Number of Audio Tracks: " + str(numberOfAudioTracks))
+    for index in range(numberOfAudioTracks):
+        print("index: " + str(index))
+        print("audioDownloadPath: " + str(audioDownloadPath))
+        print("Test output: " + str(glob.glob(audioDownloadPath + "/*.m4a")[index]))
+        audioFilePath = os.path.join(audioDownloadPath, str(glob.glob(audioDownloadPath + "/*.m4a")[index]))
+        print("audioFilePath: " + audioFilePath)
+        fileType = audioFilePath[len(audioFilePath) - 3: len(audioFilePath)]
+        print("File Type: " + fileType)
+        if(audioFilePath[len(audioFilePath) - 3: len(audioFilePath)] == "m4a"):
+            print("Current audio file:" + audioFilePath)
+            audioFile = AudioSegment.from_file(audioFilePath)
+            startPos = 15000
+            endPos = startPos + (int(numberOfClips) * int(lengthPerClip) * 1000) + 2000
+            backgroundTrack = audioFile[startPos: endPos].fade_in(2000).fade_out(2000).apply_gain(-30)
+
+            # Export file
+            backgroundTrack.export(os.path.join(audioExportPath, "backgroundTrack-00" + str(index) + ".mp3"), format = "mp3")
+            print("Background Track Exported...\n")
+
+
+#****************************************************************************************************
+# Function Name:      generateAudioFiles
+# In:                 searchKeyword
+#                     audioDownloadPath
+#                     audioExportPath
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+def generateAudioFiles(   searchKeyword
+                        , audioDownloadPath
+                        , audioExportPath
+                        , numberOfClips
+                        , numberOfVideos
+                        , lengthPerClip):
+
+    print("Entering generateAudioFiles...")
+
+    if(dpg.get_value("checkboxDownloadAudio") == True):
+        print("Need to set up directories and download audio files...")
+        audioDirectorySetUp(  audioDownloadPath
+                            , audioExportPath)
+        videoIDs = queryForYouTubeKeywords(searchKeyword)
+        downloadAudioFiles(   videoIDs
+                            , audioDownloadPath
+                            , numberOfVideos)
+        createAudioSubclips(  audioExportPath
+                            , audioDownloadPath
+                            , numberOfClips
+                            , lengthPerClip)
+
+        print("Leaving generateAudioFiles.../n")
+        return
+
+    # if(dpg.get_value("checkboxAudioDirectory") == True):
+    #     print("Need to use existing audio files from directory...")
+    #     createAudioSubclips(  audioExportPath
+    #                         , audioDownloadPath
+    #                         , numberOfClips)
+
+    #     print("Leaving generateAudioFiles.../n")
+    #     return
+                          
+
+#****************************************************************************************************
+# Function Name:      generateVideoFiles
+# In:                 sourceVideoDirectory
+#                     outputVideoDirectory
+#                     audioExportPath
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+def generateVideoFiles(   sourceVideoDirectory
+                        , outputVideoDirectory
+                        , audioExportPath
+                        , videoEndTrimTime
+                        , numberOfClips
+                        , lengthPerClip):
+    print("Generating Video Files...")
+    print("numberOfClips: " + numberOfClips)
+    video = VideoFileClip(sourceVideoDirectory)
+    video = video.subclipped(0, video.duration - int(videoEndTrimTime))
+    clipStartPosition = video.duration / (int(numberOfClips) + 1)
+    sample = video.subclipped(clipStartPosition, clipStartPosition + 3)
+    for k in range(int(numberOfClips) - 1):
+        print("video.duration: " + str(video.duration))
+        print("k value is this: " + str(k))
+        print("(k + 2) * clipStartPosition:     " + str((k + 2) * clipStartPosition))
+        print("(k + 2) * clipStartPosition + 3: " + str((k + 2) * clipStartPosition + int(lengthPerClip)))
+        sample = concatenate_videoclips([sample, video.subclipped((k + 2) * clipStartPosition, (k + 2) * clipStartPosition + int(lengthPerClip))])
+    sample = sample.without_audio()
+
+    print("Video clip generated.")
+    print(str(audioExportPath))
+
+    print("")
+    print("audioExportPath: " + str(audioExportPath))
+    
+    numberOfAudioTracks = len([filename for filename in os.listdir(audioExportPath) if ".mp3" in filename])
+    for j in range(numberOfAudioTracks):
+        sample.write_videofile(outputVideoDirectory + str(j) + ".mp4"
+                                , fps = 25
+                                , audio = os.path.join(audioExportPath, "backgroundTrack-00" + str(j) + ".mp3"))
+        print("Short video " + str(j) + " written to outputVideoDirectory.\n\n")
+
+
+#****************************************************************************************************
+# Function Name:      generateClip
+# In:                 audioExportPath
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+def generateClip(     searchKeyword
+                    , videoEndTrimTime
+                    , numberOfClips
+                    , lengthPerClip
+                    , numberOfVideos
+                    , sourceVideoDirectory
+                    , outputVideoDirectory
+                    , audioDownloadPath
+                    , audioExportPath):
+                    
+    print()
+    print("searchKeyword: " + searchKeyword)
+    print()
+
+    if(dpg.get_value("checkboxDownloadAudio") == True):
+        directorySetUp(outputVideoDirectory)
+        generateAudioFiles(   searchKeyword
+                            , audioDownloadPath
+                            , audioExportPath
+                            , numberOfClips
+                            , numberOfVideos
+                            , lengthPerClip)
+        generateVideoFiles(   sourceVideoDirectory
+                            , outputVideoDirectory
+                            , audioExportPath
+                            , videoEndTrimTime
+                            , numberOfClips
+                            , lengthPerClip)
+        return
+    
+    if(dpg.get_value("checkboxAudioDirectory") == True):
+        generateAudioFiles(   searchKeyword
+                            , audioDownloadPath
+                            , audioExportPath
+                            , numberOfClips
+                            , numberOfVideos
+                            , lengthPerClip)
+        generateVideoFiles(   sourceVideoDirectory
+                            , outputVideoDirectory
+                            , audioExportPath
+                            , videoEndTrimTime
+                            , numberOfClips
+                            ,lengthPerClip)
+        return
+
+
+#****************************************************************************************************
+# Function Name:      deleteDirectoryAndContents
+# In:                 directoryPath
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+def deleteDirectoryAndContents(directoryPath):
+    # Directory clean up
+    shutil.rmtree(directoryPath)
+
+
+#****************************************************************************************************
+# Function Name:      
+# In:                 
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+dpg.create_context()
+
+
+#****************************************************************************************************
+# Function Name:      populate_callback
+# In:                 sender
+#                     app_data
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        Populates the file dialog text box. Used for debugging.
+#****************************************************************************************************
+def populate_callback(  sender
+                      , app_data):
+    print('Populate File Dialog Text Box')
+    print('Sender: ', sender)
+    print('App Data: ', app_data)
+
+
+#****************************************************************************************************
+# Function Name:      callback
+# In:                 sender
+#                     app_data
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        Sets the audio or video source directory pathname based on the file extension.
+#****************************************************************************************************
+def callback(  sender
+             , app_data):
+    print('OK was clicked.')
+    print("Sender: ", sender)
+    print("App Data: ", app_data)
+    print("app_data[\'file_path_name\']: ", app_data['file_path_name'])
+
+    print("len(app_data['file_path_name']) - 3: ")
+    print(len(app_data['file_path_name']) - 3)
+
+    if(app_data['file_path_name'][len(app_data['file_path_name']) - 3: ] == 'mkv'):
+        dpg.set_value("sourceVideoDirectory", app_data['file_path_name'])
+    if(app_data['file_path_name'][len(app_data['file_path_name']) - 3: ] == 'mp4'):
+        dpg.set_value("sourceVideoDirectory", app_data['file_path_name'])
+    if(app_data['file_path_name'][len(app_data['file_path_name']) - 3: ] == 'm4a'):
+        dpg.set_value("sourceAudioDirectory", app_data['file_path_name'])
+
+
+#****************************************************************************************************
+# Function Name:      cancel_callback
+# In:                 sender, app_data
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+def cancel_callback(  sender
+                    , app_data):
+    print('Cancel was clicked.')
+    print("Sender: ", sender)
+    print("App Data: ", app_data)
+
+
+#****************************************************************************************************
+# Function Name:      
+# In:                 
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+with dpg.file_dialog(  directory_selector = False
+                     , show = False
+                     , callback = callback
+                     , tag = "file_dialog_id"
+                     , cancel_callback = cancel_callback
+                     , width = 600
+                     , height = 400):
+
+    # if(sender == "")
+    dpg.add_file_extension(".mkv")
+    dpg.add_file_extension(".mp4")
+    dpg.add_file_extension(".m4a")
+    dpg.add_file_extension("", color=(150, 255, 150, 255))
+
+
+#****************************************************************************************************
+# Function Name:      audioDirectorySelectCallback
+# In:                 sender, app_data
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+def audioDirectorySelectCallback(sender, app_data):
+    print('OK was clicked.')
+    print("Sender: ", sender)
+    print("App Data: ", app_data)
+    print("audioDirectorySelectCallback")
+
+    dpg.set_value("sourceAudioDirectory", app_data['file_path_name'])
+
+
+#****************************************************************************************************
+# Function Name:      
+# In:                 
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+dpg.add_file_dialog(  directory_selector = True
+                     , show = False
+                     , callback = audioDirectorySelectCallback
+                     , tag = "audio_directory_id"
+                     , cancel_callback = cancel_callback
+                     , width = 600
+                     , height = 400)
+
+
+#****************************************************************************************************
+# Function Name:      checkTheCheckbox
+# In:                 sender
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        Checks whether a checkbox is checked or not. Used for debugging.
+#****************************************************************************************************
+def checkTheCheckbox(sender):
+    print(dpg.get_value(sender))
+
+
+#****************************************************************************************************
+# Function Name:      printSearchBoxText
+# In:                 sender
+#                     app_data
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        Prints what's in the search keywords box. Used for debugging.
+#****************************************************************************************************
+def printSearchBoxText(   sender
+                        , data):
+    print(dpg.get_value("searchKeywords"))
+
+
+#****************************************************************************************************
+# Function Name:      checkboxAudioSource
+# In:                 sender
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        Determines the source of the audio for the video. Options are a single audio file,
+#                       a directory of existing audio files, and downloading audio from YouTube.
+#****************************************************************************************************
+def checkboxAudioSource(sender):
+    print(sender)
+
+    if(sender == "checkboxSingleAudioFile"):
+        dpg.set_value(checkboxSingleAudioFile, True)
+        dpg.set_value(checkboxAudioDirectory, False)
+        dpg.set_value(checkboxDownloadAudio, False)
+        return
+    elif(sender == "checkboxAudioDirectory"):
+        dpg.set_value(checkboxSingleAudioFile, False)
+        dpg.set_value(checkboxAudioDirectory, True)
+        dpg.set_value(checkboxDownloadAudio, False)
+        return
+    elif(sender == "checkboxDownloadAudio"):
+        dpg.set_value(checkboxSingleAudioFile, False)
+        dpg.set_value(checkboxAudioDirectory, False)
+        dpg.set_value(checkboxDownloadAudio, True)
+        return
+
+
+#****************************************************************************************************
+# Function Name:      addVideoTitleToPaths
+# In:                 sender
+#                     app_data
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        Takes in put from the video title and changes the -insert-title-here- text
+#                       to the video title in the pathnames for the project.
+#****************************************************************************************************
+def addVideoTitleToPaths(     sender
+                            , app_data):
+    print("app_data: ")
+    print(app_data)
+
+    dpg.set_value("outputVideoDirectory", "/home/nik/youTubeShortsCreator/" + datetime.datetime.now().strftime("%Y%m%d") + "/" + app_data)
+    dpg.set_value("audioDownloadDirectory", "/home/nik/youTubeShortsCreator/" + datetime.datetime.now().strftime("%Y%m%d") + "/" + app_data + "/AUDIO/sessionAudioDownloads")
+    dpg.set_value("audioExportDirectory", "/home/nik/youTubeShortsCreator/" + datetime.datetime.now().strftime("%Y%m%d") + "/" + app_data + "/AUDIO/backgroundTrack")
+    if(app_data == ""):
+        dpg.set_value("outputVideoDirectory", "/home/nik/youTubeShortsCreator/" + datetime.datetime.now().strftime("%Y%m%d"))
+        dpg.set_value("audioDownloadDirectory", "/home/nik/youTubeShortsCreator/" + datetime.datetime.now().strftime("%Y%m%d") + "/-insert-name-here-/AUDIO/sessionAudioDownloads")
+        dpg.set_value("audioExportDirectory", "/home/nik/youTubeShortsCreator/" + datetime.datetime.now().strftime("%Y%m%d") + "/-insert-name-here-/AUDIO/backgroundTrack")
+
+
+#****************************************************************************************************
+# Function Name:      
+# In:                 
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+with dpg.window(tag="Primary Window"):
+
+    # audioBasePath = AUDIO_BASE_PATH
+    # backgroundTrackPath = "backgroundTrack"
+    # audioExportPath = os.path.join(audioBasePath, backgroundTrackPath)
+    # audioDownloadPath = os.path.join(audioBasePath, "sessionAudioDownloads")
+    # videoIDs = []
+    # searchKeyword = SEARCH_KEYWORDS
+
+    dpg.create_viewport(title='YouTube Shorts Creator'
+                        , width = 950
+                        , height = 680)
+
+    sourceVideoDirectory = dpg.add_input_text(tag = "sourceVideoDirectory")
+    dpg.set_item_pos(sourceVideoDirectory, [25, 40])
+    
+    buttonOpenVideo = dpg.add_button(     label="Open Video Source"
+                                        , callback=lambda: dpg.show_item("file_dialog_id")
+                                    #  , populate_callback = print_me
+                                    )
+    dpg.set_item_pos(buttonOpenVideo, [650, 40])
+
+    outputVideoTitle = dpg.add_input_text(  tag = "outputVideoTitle"
+                                          , label = "Output Video Title"
+                                          , callback = addVideoTitleToPaths)
+    dpg.set_item_pos(outputVideoTitle, [25, 80])
+    
+    outputVideoDirectory = dpg.add_input_text(    tag = "outputVideoDirectory"
+                                                , label = "Output Video Directory"
+                                                , default_value = "/home/nik/youTubeShortsCreator/" + datetime.datetime.now().strftime("%Y%m%d") + "/")
+    dpg.set_item_pos(outputVideoDirectory, [25, 120])
+
+    videoEndTrimTime = dpg.add_input_text(    tag = "videoEndTrimTime"
+                                            , label = "Video End Trim Time"
+                                            , default_value = "355")
+    dpg.set_item_pos(videoEndTrimTime, [25, 160])
+
+    numberOfClips = dpg.add_input_text(   tag = "numberOfClips"
+                                        , label = "Number of Sample Clips in Video"
+                                        , default_value = "15")
+    dpg.set_item_pos(numberOfClips, [25, 200])
+
+    lengthPerClip = dpg.add_input_text(   tag = "lengthPerClip"
+                                        , label  = "Length per Clip"
+                                        , default_value = "3")
+    dpg.set_item_pos(lengthPerClip, [25, 240])
+
+    numberOfVideos = dpg.add_input_text(  tag = "numberOfVideos"
+                                        , label = "Number of Videos"
+                                        ,default_value = "3")
+    dpg.set_item_pos(numberOfVideos, [25, 280])
+
+    checkboxSingleAudioFile = dpg.add_checkbox(       tag = "checkboxSingleAudioFile"
+                                                    , label = "Use a Single Audio File"
+                                                    , callback = checkboxAudioSource)
+    dpg.set_item_pos(checkboxSingleAudioFile, [25, 320])
+
+    sourceAudioFile = dpg.add_input_text(tag = "sourceAudioFile")
+    dpg.set_item_pos(sourceAudioFile, [40, 360])
+    
+    buttonOpenAudioFile = dpg.add_button(     label = "Open Audio Source"
+                                            , tag = "buttonOpenAudioFile"
+                                            , callback=lambda: dpg.show_item("file_dialog_id")
+                                        #   , populate_callback = print_me
+                                    )
+    dpg.set_item_pos(buttonOpenAudioFile, [680, 360])
+
+    checkboxAudioDirectory = dpg.add_checkbox(     tag = "checkboxAudioDirectory"
+                                                 , label = "Use a Directory of Audio Files"
+                                                 , default_value = False
+                                                 , callback = checkboxAudioSource)
+    dpg.set_item_pos(checkboxAudioDirectory, [25, 400])
+
+    sourceAudioDirectory = dpg.add_input_text(tag = "sourceAudioDirectory")
+    dpg.set_item_pos(sourceAudioDirectory, [40, 440])
+    
+    buttonOpenAudioDirectory = dpg.add_button(    label = "Open Audio Directory"
+                                                , tag = "buttonOpenAudioDirectory"
+                                                , callback=lambda: dpg.show_item("audio_directory_id")
+                                            #   , populate_callback = print_me
+                                    )
+    dpg.set_item_pos(buttonOpenAudioDirectory, [680, 440])
+    
+    checkboxDownloadAudio = dpg.add_checkbox(     tag = "checkboxDownloadAudio"
+                                                , label="Download Audio Files From YouTube"
+                                                , callback = checkboxAudioSource
+                                                , default_value = True)
+    dpg.set_item_pos(checkboxDownloadAudio, [25, 480])
+
+    searchDialogBox = dpg.add_input_text(  tag = "searchKeywords"
+                                         , label = "YouTube Search Keywords"
+                                         , default_value="lofi+boom+bap+free+for+profit")
+    dpg.set_item_pos(searchDialogBox, [40, 520])
+
+    audioDownloadDirectory = dpg.add_input_text(  tag = "audioDownloadDirectory"
+                                                , label = "Audio Download Directory"
+                                                , default_value = "/home/nik/youTubeShortsCreator/" + datetime.datetime.now().strftime("%Y%m%d") + "/-insert-name-here-/AUDIO/sessionAudioDownloads")
+    dpg.set_item_pos(audioDownloadDirectory, [40, 560])
+
+    audioExportDirectory = dpg.add_input_text(  tag = "audioExportDirectory"
+                                              , label = "Audio Export Directory"
+                                              , default_value = "/home/nik/youTubeShortsCreator/" + datetime.datetime.now().strftime("%Y%m%d") + "/-insert-name-here-/AUDIO/backgroundTrack")
+    dpg.set_item_pos(audioExportDirectory, [40, 600])
+
+    buttonGenerateClip = dpg.add_button(   label="Generate"
+                                         , callback = lambda: generateClip(   dpg.get_value("searchKeywords") + "&sp=CAI%253D"
+                                                                            , dpg.get_value("videoEndTrimTime")
+                                                                            , dpg.get_value("numberOfClips")
+                                                                            , dpg.get_value("lengthPerClip")
+                                                                            , dpg.get_value("numberOfVideos")
+                                                                            , dpg.get_value("sourceVideoDirectory")
+                                                                            , dpg.get_value("outputVideoDirectory")
+                                                                            , dpg.get_value("audioDownloadDirectory")
+                                                                            , dpg.get_value("audioExportDirectory")))
+    dpg.set_item_pos(buttonGenerateClip, [25, 640])
+
+    # deleteSessionData = dpg.add_button(  label="Delete Session Data"
+    #                                    , callback = deleteDirectoryAndContents(dpg.get_value("outputVideoDirectory")))
+    # dpg.set_item_pos(deleteSessionData, [120, 480])
+
+
+#****************************************************************************************************
+# Function Name:      doStuff
+# In:                 
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        Does stuff...
+#****************************************************************************************************
+def doStuff():
+
+    print("App started...")
+    dpg.setup_dearpygui()
+    dpg.show_viewport()
+    dpg.set_primary_window("Primary Window", True)
+    dpg.start_dearpygui()
+    dpg.destroy_context()
+
+
+#****************************************************************************************************
+# Function Name:      
+# In:                 
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+def reloadApp():
+    temp = 0
+
+
+#****************************************************************************************************
+# Function Name:      
+# In:                 
+# Out:                N/A
+# In/Out:             N/A
+# Returns:            N/A
+# Description:        
+#****************************************************************************************************
+with dpg.viewport_menu_bar():
+    with dpg.menu(label="File"):
+        dpg.add_menu_item(label="Save"
+                          , callback=print_me)
+        dpg.add_menu_item(label="Save As"
+                          , callback=print_me)
+        dpg.add_menu_item(label="Reload"
+                          , callback = reloadApp)
+
+        with dpg.menu(label="Settings"):
+            dpg.add_menu_item(label="Setting 1", callback=print_me, check=True)
+            dpg.add_menu_item(label="Setting 2", callback=print_me)
+
+    dpg.add_menu_item(label="Help", callback=print_me)
+
+
+doStuff()
